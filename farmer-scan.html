@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Farmer – Scan Crop QR</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body { background:#0f172a; color:#e2e8f0; font-family: Inter, sans-serif; }
+.card { background:#1e293b; padding:20px; border-radius:12px; border:1px solid #334155; }
+</style>
+</head>
+
+<body class="p-4 max-w-xl mx-auto">
+
+<h1 class="text-white text-2xl font-bold text-center mb-5">Farmer – Scan Crop QR</h1>
+
+<div class="card mb-4 text-center">
+    <button id="scanBtn" class="bg-blue-600 px-5 py-3 rounded text-white font-semibold">
+        Scan Crop QR (Back Camera)
+    </button>
+
+    <div id="qr-reader" class="mt-4" style="display:none;"></div>
+    <p id="scan-result" class="text-green-400 mt-3"></p>
+</div>
+
+<div id="crop-details" class="card" style="display:none;">
+    <h2 class="text-xl text-white font-semibold mb-3">Crop Details</h2>
+
+    <p><strong>Crop ID:</strong> <span id="cd-item"></span></p>
+    <p><strong>Farmer:</strong> <span id="cd-supplier"></span></p>
+    <p><strong>Crop Type:</strong> <span id="cd-type"></span></p>
+    <p><strong>Serial No:</strong> <span id="cd-serial"></span></p>
+    <p><strong>Sowing:</strong> <span id="cd-sowing"></span></p>
+    <p><strong>Harvest:</strong> <span id="cd-harvest"></span></p>
+    <p><strong>Grow Time:</strong> <span id="cd-grow"></span></p>
+    <p><strong>Manufactured:</strong> <span id="cd-mfg"></span></p>
+    <p><strong>Expiry:</strong> <span id="cd-exp"></span></p>
+    <p><strong>Customer:</strong> <span id="cd-customer"></span></p>
+    <p><strong>Status:</strong> <span id="cd-status"></span></p>
+
+    <p class="mt-2"><strong>Advisory:</strong><br>
+        <span id="cd-adv" class="text-slate-400"></span>
+    </p>
+
+    <button onclick="location.reload()" class="bg-slate-700 text-white w-full mt-4 py-2 rounded">
+        Scan Another Crop
+    </button>
+</div>
+
+<script>
+/* ---- Your Supabase ---- */
+const SUPABASE_URL = "https://mklurhapkmthwmfhbtuc.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rbHVyaGFwa210aHdtZmhidHVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2Nzg3NzEsImV4cCI6MjA4MDI1NDc3MX0.-I3I-oaOjKwp3lVQN_jYJYtxGyDUxpBR3TqF6bFsI4Y";
+/* ------------------------ */
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+let scanner = null;
+
+document.getElementById("scanBtn").onclick = startScanner;
+
+function startScanner(){
+    document.getElementById("qr-reader").style.display = "block";
+
+    scanner = new Html5Qrcode("qr-reader");
+
+    Html5Qrcode.getCameras().then(cameras => {
+        
+        // FORCE back camera first
+        let backCam = cameras.find(cam => cam.label.toLowerCase().includes("back"))
+                    || cameras.find(cam => cam.label.toLowerCase().includes("rear"))
+                    || cameras[0];  // fallback
+
+        scanner.start(
+            backCam.id,
+            {
+                fps: 10,
+                qrbox: 250,
+                videoConstraints: {
+                    facingMode: { exact: "environment" }  // FORCE BACK CAMERA
+                }
+            },
+            qr => {
+                stopScanner();
+                document.getElementById("scan-result").innerHTML = "Scanned: " + qr;
+                fetchCrop(qr.trim());
+            }
+        ).catch(err => {
+            // If exact: environment fails → fallback
+            scanner.start(
+                cameras[0].id,
+                { fps: 10, qrbox: 250 },
+                qr => {
+                    stopScanner();
+                    document.getElementById("scan-result").innerHTML = "Scanned: " + qr;
+                    fetchCrop(qr.trim());
+                }
+            );
+        });
+    });
+}
+
+function stopScanner(){
+    if(scanner){
+        scanner.stop().then(()=> scanner.clear());
+    }
+}
+
+async function fetchCrop(id){
+    const { data } = await db.from("crops")
+        .select("*").eq("item_id", id)
+        .order("timestamp", { ascending:false })
+        .limit(1);
+
+    if(!data || data.length === 0){
+        alert("Crop not found!");
+        return;
+    }
+
+    const c = data[0];
+
+    document.getElementById("cd-item").textContent = c.item_id;
+    document.getElementById("cd-supplier").textContent = c.supplier;
+    document.getElementById("cd-serial").textContent = c.serial_no;
+    document.getElementById("cd-type").textContent = c.crop_type;
+    document.getElementById("cd-sowing").textContent = c.sowing_date;
+    document.getElementById("cd-harvest").textContent = c.harvest_date;
+    document.getElementById("cd-grow").textContent = c.grow_time_days;
+    document.getElementById("cd-mfg").textContent = c.manufactured_date;
+    document.getElementById("cd-exp").textContent = c.expiry_date;
+    document.getElementById("cd-customer").textContent = c.customer;
+    document.getElementById("cd-status").textContent = c.order_status;
+    document.getElementById("cd-adv").textContent = c.advisory_notes;
+
+    document.getElementById("crop-details").style.display = "block";
+}
+
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js");
+}
+</script>
+
+</body>
+</html>
