@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Vendor – Verify Crop</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body { background:#0f172a; color:#e2e8f0; font-family: Inter, sans-serif; }
+.card { background:#1e293b; padding:20px; border-radius:12px; border:1px solid #334155; }
+</style>
+</head>
+
+<body class="p-4 max-w-xl mx-auto">
+
+<h1 class="text-white text-2xl font-bold text-center mb-5">Vendor – Verify Crop</h1>
+
+<div class="card mb-4">
+    <button id="scanBtn" class="bg-blue-600 px-5 py-3 rounded text-white font-semibold">
+        Scan QR
+    </button>
+
+    <input id="manualId" placeholder="Or Enter Crop ID" class="w-full mt-3 p-3 rounded bg-slate-800" />
+    <button id="verifyBtn" class="bg-green-600 w-full mt-3 py-2 rounded text-white">Verify</button>
+
+    <div id="qr-reader" style="display:none;" class="mt-4"></div>
+</div>
+
+<div id="details" class="card" style="display:none;">
+    <h2 class="text-xl font-bold mb-2">Crop Details</h2>
+
+    <p><strong>Crop ID:</strong> <span id="d-item"></span></p>
+    <p><strong>Farmer:</strong> <span id="d-supplier"></span></p>
+    <p><strong>Crop Type:</strong> <span id="d-type"></span></p>
+    <p><strong>Status:</strong> <span id="d-status"></span></p>
+
+    <h3 class="text-lg font-semibold mt-4">Timeline</h3>
+    <div id="timeline" class="mt-2 space-y-2 max-h-60 overflow-y-auto"></div>
+
+    <button onclick="downloadCert()" class="bg-purple-600 w-full mt-5 py-2 rounded text-white">
+        Download Certificate
+    </button>
+</div>
+
+<script>
+/* ---- REPLACE WITH YOUR SUPABASE VALUES ---- */
+const SUPABASE_URL = "https://mklurhapkmthwmfhbtuc.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rbHVyaGFwa210aHdtZmhidHVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2Nzg3NzEsImV4cCI6MjA4MDI1NDc3MX0.-I3I-oaOjKwp3lVQN_jYJYtxGyDUxpBR3TqF6bFsI4Y";
+/* ------------------------------------------- */
+
+const db = supabase.createClient('https://mklurhapkmthwmfhbtuc.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rbHVyaGFwa210aHdtZmhidHVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2Nzg3NzEsImV4cCI6MjA4MDI1NDc3MX0.-I3I-oaOjKwp3lVQN_jYJYtxGyDUxpBR3TqF6bFsI4Y');
+
+let qrScanner = null;
+let currentCrop = null;
+
+document.getElementById("scanBtn").onclick = startScan;
+document.getElementById("verifyBtn").onclick = verifyManual;
+
+function startScan(){
+    document.getElementById("qr-reader").style.display = "block";
+    qrScanner = new Html5Qrcode("qr-reader");
+
+    Html5Qrcode.getCameras().then(cams=>{
+        qrScanner.start(
+            cams[0].id,
+            { fps:10, qrbox:250 },
+            code=>{
+                stopScan();
+                verify(code.trim());
+            }
+        );
+    });
+}
+
+function stopScan(){
+    if(qrScanner){
+        qrScanner.stop().then(()=> qrScanner.clear());
+    }
+}
+
+function verifyManual(){
+    const id = document.getElementById("manualId").value.trim();
+    if(id) verify(id);
+}
+
+async function verify(id){
+    const { data } = await db.from("crops")
+        .select("*").eq("item_id", id)
+        .order("timestamp", { ascending:true });
+
+    if(!data || data.length===0){
+        alert("Crop not found!");
+        return;
+    }
+
+    currentCrop = data;
+
+    const base = data[0];
+    document.getElementById("details").style.display="block";
+    document.getElementById("d-item").textContent = base.item_id;
+    document.getElementById("d-supplier").textContent = base.supplier;
+    document.getElementById("d-type").textContent = base.crop_type;
+    document.getElementById("d-status").textContent = data[data.length-1].order_status;
+
+    document.getElementById("timeline").innerHTML =
+        data.map(ev => `
+            <div class="p-2 bg-slate-800 rounded">
+              <strong>${ev.order_status}</strong> — ${ev.customer}<br>
+              <span class="text-xs text-slate-400">${ev.timestamp}</span>
+            </div>
+        `).join("");
+}
+
+function downloadCert(){
+    if(!currentCrop) return;
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF();
+    const c = currentCrop[0];
+
+    pdf.text("Crop Authenticity Certificate", 20, 20);
+    pdf.text("Crop ID: " + c.item_id, 20, 40);
+    pdf.text("Farmer: " + c.supplier, 20, 50);
+    pdf.text("Crop Type: " + c.crop_type, 20, 60);
+    pdf.text("Status: " + currentCrop[currentCrop.length-1].order_status, 20, 70);
+
+    pdf.text("Generated on: " + new Date().toLocaleString(), 20, 90);
+
+    pdf.save(c.item_id + "_certificate.pdf");
+}
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js");
+}
+</script>
+</body>
+</html>
