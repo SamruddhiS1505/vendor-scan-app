@@ -21,7 +21,7 @@ body { background:#0f172a; color:#e2e8f0; font-family: Inter, sans-serif; }
 
 <div class="card mb-4 text-center">
     <button id="scanBtn" class="bg-blue-600 px-5 py-3 rounded text-white font-semibold">
-        Scan Crop QR
+        Scan Crop QR (Back Camera)
     </button>
 
     <div id="qr-reader" class="mt-4" style="display:none;"></div>
@@ -53,12 +53,12 @@ body { background:#0f172a; color:#e2e8f0; font-family: Inter, sans-serif; }
 </div>
 
 <script>
-/* ---- REPLACE WITH YOUR SUPABASE VALUES ---- */
+/* ---- Your Supabase ---- */
 const SUPABASE_URL = "https://mklurhapkmthwmfhbtuc.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rbHVyaGFwa210aHdtZmhidHVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2Nzg3NzEsImV4cCI6MjA4MDI1NDc3MX0.-I3I-oaOjKwp3lVQN_jYJYtxGyDUxpBR3TqF6bFsI4Y";
-/* ------------------------------------------- */
+/* ------------------------ */
 
-const db = supabase.createClient('https://mklurhapkmthwmfhbtuc.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rbHVyaGFwa210aHdtZmhidHVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2Nzg3NzEsImV4cCI6MjA4MDI1NDc3MX0.-I3I-oaOjKwp3lVQN_jYJYtxGyDUxpBR3TqF6bFsI4Y');
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 let scanner = null;
 
 document.getElementById("scanBtn").onclick = startScanner;
@@ -67,16 +67,40 @@ function startScanner(){
     document.getElementById("qr-reader").style.display = "block";
 
     scanner = new Html5Qrcode("qr-reader");
-    Html5Qrcode.getCameras().then(cams => {
+
+    Html5Qrcode.getCameras().then(cameras => {
+        
+        // FORCE back camera first
+        let backCam = cameras.find(cam => cam.label.toLowerCase().includes("back"))
+                    || cameras.find(cam => cam.label.toLowerCase().includes("rear"))
+                    || cameras[0];  // fallback
+
         scanner.start(
-            cams[0].id,
-            { fps:10, qrbox:250 },
+            backCam.id,
+            {
+                fps: 10,
+                qrbox: 250,
+                videoConstraints: {
+                    facingMode: { exact: "environment" }  // FORCE BACK CAMERA
+                }
+            },
             qr => {
                 stopScanner();
                 document.getElementById("scan-result").innerHTML = "Scanned: " + qr;
                 fetchCrop(qr.trim());
             }
-        );
+        ).catch(err => {
+            // If exact: environment fails → fallback
+            scanner.start(
+                cameras[0].id,
+                { fps: 10, qrbox: 250 },
+                qr => {
+                    stopScanner();
+                    document.getElementById("scan-result").innerHTML = "Scanned: " + qr;
+                    fetchCrop(qr.trim());
+                }
+            );
+        });
     });
 }
 
@@ -89,7 +113,8 @@ function stopScanner(){
 async function fetchCrop(id){
     const { data } = await db.from("crops")
         .select("*").eq("item_id", id)
-        .order("timestamp", { ascending:false }).limit(1);
+        .order("timestamp", { ascending:false })
+        .limit(1);
 
     if(!data || data.length === 0){
         alert("Crop not found!");
@@ -113,11 +138,11 @@ async function fetchCrop(id){
 
     document.getElementById("crop-details").style.display = "block";
 }
+
 if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js");
 }
 </script>
-
 
 </body>
 </html>
