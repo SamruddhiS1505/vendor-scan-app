@@ -5,6 +5,16 @@
 <title>Vendor – Verify Crop</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- ✅ PWA SUPPORT -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0ea5e9">
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
+<!-- END PWA -->
+
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -71,11 +81,10 @@ function startScan(){
             return;
         }
 
-        // Try to find back camera
         const backCam = cams.find(c =>
             c.label.toLowerCase().includes("back") ||
             c.label.toLowerCase().includes("rear"));
-        
+
         const camToUse = backCam ? backCam.id : cams[cams.length - 1].id;
 
         qrScanner.start(
@@ -146,8 +155,7 @@ function downloadCert(){
 
     pdf.save(c.item_id + "_certificate.pdf");
 }
-
 </script>
+
 </body>
 </html>
-
