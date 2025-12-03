@@ -22,7 +22,7 @@ body { background:#0f172a; color:#e2e8f0; font-family: Inter, sans-serif; }
 
 <div class="card mb-4">
     <button id="scanBtn" class="bg-blue-600 px-5 py-3 rounded text-white font-semibold">
-        Scan QR
+        Scan QR (Back Camera)
     </button>
 
     <input id="manualId" placeholder="Or Enter Crop ID" class="w-full mt-3 p-3 rounded bg-slate-800" />
@@ -48,12 +48,11 @@ body { background:#0f172a; color:#e2e8f0; font-family: Inter, sans-serif; }
 </div>
 
 <script>
-/* ---- REPLACE WITH YOUR SUPABASE VALUES ---- */
-const SUPABASE_URL = "https://mklurhapkmthwmfhbtuc.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rbHVyaGFwa210aHdtZmhidHVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2Nzg3NzEsImV4cCI6MjA4MDI1NDc3MX0.-I3I-oaOjKwp3lVQN_jYJYtxGyDUxpBR3TqF6bFsI4Y";
-/* ------------------------------------------- */
-
-const db = supabase.createClient('https://mklurhapkmthwmfhbtuc.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rbHVyaGFwa210aHdtZmhidHVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2Nzg3NzEsImV4cCI6MjA4MDI1NDc3MX0.-I3I-oaOjKwp3lVQN_jYJYtxGyDUxpBR3TqF6bFsI4Y');
+/* ---- SUPABASE ---- */
+const db = supabase.createClient(
+  "https://mklurhapkmthwmfhbtuc.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rbHVyaGFwa210aHdtZmhidHVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2Nzg3NzEsImV4cCI6MjA4MDI1NDc3MX0.-I3I-oaOjKwp3lVQN_jYJYtxGyDUxpBR3TqF6bFsI4Y"
+);
 
 let qrScanner = null;
 let currentCrop = null;
@@ -61,15 +60,28 @@ let currentCrop = null;
 document.getElementById("scanBtn").onclick = startScan;
 document.getElementById("verifyBtn").onclick = verifyManual;
 
+/* ---- Start QR Scanner with BACK CAMERA ---- */
 function startScan(){
     document.getElementById("qr-reader").style.display = "block";
     qrScanner = new Html5Qrcode("qr-reader");
 
     Html5Qrcode.getCameras().then(cams=>{
+        if(cams.length === 0){
+            alert("No camera found");
+            return;
+        }
+
+        // Try to find back camera
+        const backCam = cams.find(c =>
+            c.label.toLowerCase().includes("back") ||
+            c.label.toLowerCase().includes("rear"));
+        
+        const camToUse = backCam ? backCam.id : cams[cams.length - 1].id;
+
         qrScanner.start(
-            cams[0].id,
+            camToUse,
             { fps:10, qrbox:250 },
-            code=>{
+            code => {
                 stopScan();
                 verify(code.trim());
             }
@@ -88,6 +100,7 @@ function verifyManual(){
     if(id) verify(id);
 }
 
+/* ---- Verify Crop ---- */
 async function verify(id){
     const { data } = await db.from("crops")
         .select("*").eq("item_id", id)
@@ -116,6 +129,7 @@ async function verify(id){
         `).join("");
 }
 
+/* ---- Certificate Download ---- */
 function downloadCert(){
     if(!currentCrop) return;
 
@@ -128,14 +142,11 @@ function downloadCert(){
     pdf.text("Farmer: " + c.supplier, 20, 50);
     pdf.text("Crop Type: " + c.crop_type, 20, 60);
     pdf.text("Status: " + currentCrop[currentCrop.length-1].order_status, 20, 70);
-
-    pdf.text("Generated on: " + new Date().toLocaleString(), 20, 90);
+    pdf.text("Verified On: " + new Date().toLocaleString(), 20, 90);
 
     pdf.save(c.item_id + "_certificate.pdf");
 }
-if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js");
-}
+
 </script>
 </body>
 </html>
