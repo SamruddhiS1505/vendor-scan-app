@@ -3,13 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart Crop Advisory – Home</title>
+
+  <title>Smart Crop Advisory</title>
+
+  <!-- PWA Essentials -->
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0ea5e9">
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js");
     }
   </script>
+
   <style>
     body {
       margin: 0;
@@ -49,6 +54,7 @@
     }
   </style>
 </head>
+
 <body>
 
   <div class="container">
